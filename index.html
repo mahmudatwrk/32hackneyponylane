@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>32 Hackney Pony Lane – Nearby Places</title>
+<meta name="description" content="Interactive map of drive times and distances from 32 Hackney Pony Lane, Hilton Head Island, SC.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;800&display=swap">
+<style>
+  :root {
+    --accent: #e0262b;
+    --accent-soft: #fde8e8;
+    --ink: #1f2933;
+    --muted: #616e7c;
+    --panel: #ffffff;
+    --line: #e4e7eb;
+    --bg: #f5f7fa;
+    --shadow: 0 6px 24px rgba(15, 23, 42, .16);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .app { position: relative; height: 100%; min-height: 420px; display: flex; }
+  #map { flex: 1; height: 100%; background: #dfe9ee; }
+
+  /* ---------- Side panel ---------- */
+  .panel {
+    width: 320px; max-width: 42%;
+    height: 100%; overflow-y: auto;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column;
+  }
+  .panel header { padding: 18px 18px 12px; border-bottom: 1px solid var(--line); }
+  .panel h1 { margin: 0; font-size: 19px; font-weight: 800; line-height: 1.2; }
+  .panel .sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .places { list-style: none; margin: 0; padding: 8px; }
+  .place {
+    display: flex; gap: 12px; align-items: center;
+    padding: 10px; border-radius: 12px; cursor: pointer;
+    border: 1px solid transparent;
+    transition: background .15s, border-color .15s;
+  }
+  .place:hover, .place:focus-visible { background: var(--bg); outline: none; }
+  .place.active { background: var(--accent-soft); border-color: var(--accent); }
+  .thumb {
+    flex: none; width: 52px; height: 52px; border-radius: 10px;
+    background: var(--bg) center/cover no-repeat;
+    display: grid; place-items: center; font-size: 24px;
+  }
+  .place .name { font-weight: 800; font-size: 15px; line-height: 1.2; }
+  .place .cat { color: var(--muted); font-size: 12px; }
+  .place .meta { margin-top: 3px; font-size: 13px; color: var(--ink); }
+  .place .meta b { color: var(--accent); }
+  .panel .tip {
+    margin: auto 12px 12px; padding: 10px 12px; border-radius: 10px;
+    background: var(--bg); color: var(--muted); font-size: 12.5px; line-height: 1.4;
+  }
+
+  /* ---------- Markers ---------- */
+  .home-pin, .poi-pin { background: none; border: none; }
+  .poi-dot {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent);
+    box-shadow: var(--shadow);
+    display: grid; place-items: center; font-size: 17px;
+    transition: transform .15s;
+  }
+  .poi-pin.active .poi-dot { transform: scale(1.25); background: var(--accent-soft); }
+  .route-label {
+    background: var(--accent); color: #fff; border: none; border-radius: 999px;
+    padding: 2px 9px; font-weight: 800; font-size: 12.5px; box-shadow: var(--shadow);
+    white-space: nowrap;
+  }
+  .route-label::before { display: none; }
+  .measure-label {
+    background: #fff; color: var(--ink); border: 2px solid var(--ink); border-radius: 8px;
+    padding: 3px 8px; font-weight: 700; font-size: 12.5px; box-shadow: var(--shadow);
+  }
+
+  /* ---------- Popups ---------- */
+  .leaflet-popup-content-wrapper { border-radius: 14px; box-shadow: var(--shadow); }
+  .leaflet-popup-content { margin: 0; width: 240px !important; font-family: inherit; }
+  .pop-img { height: 120px; background: var(--bg) center/cover no-repeat; border-radius: 14px 14px 0 0; }
+  .pop-body { padding: 12px 14px 14px; }
+  .pop-body h3 { margin: 0 0 2px; font-size: 16px; font-weight: 800; }
+  .pop-body .addr { color: var(--muted); font-size: 12.5px; margin: 0 0 8px; }
+  .stats { display: flex; gap: 8px; margin-bottom: 10px; }
+  .stat { flex: 1; background: var(--bg); border-radius: 8px; padding: 6px 8px; text-align: center; }
+  .stat b { display: block; font-size: 16px; color: var(--accent); }
+  .stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .btn {
+    display: block; text-align: center; text-decoration: none;
+    background: var(--accent); color: #fff !important; font-weight: 700; font-size: 13px;
+    padding: 8px 10px; border-radius: 8px;
+  }
+  .btn:hover { filter: brightness(.92); }
+
+  /* ---------- Map buttons ---------- */
+  .map-btns { display: flex; flex-direction: column; gap: 6px; }
+  .map-btn {
+    font: 700 13px/1 "Nunito Sans", system-ui, sans-serif;
+    background: #fff; color: var(--ink); border: none; border-radius: 8px;
+    padding: 9px 12px; box-shadow: var(--shadow); cursor: pointer;
+  }
+  .map-btn.on { background: var(--ink); color: #fff; }
+
+  /* ---------- Edit mode ---------- */
+  .editbox {
+    position: absolute; right: 12px; bottom: 28px; z-index: 1000;
+    width: min(420px, calc(100% - 24px)); background: #fff; border-radius: 12px;
+    box-shadow: var(--shadow); padding: 12px; font-size: 12.5px;
+  }
+  .editbox textarea { width: 100%; height: 150px; font: 11.5px/1.35 ui-monospace, Menlo, monospace; }
+
+  /* ---------- Mobile: list becomes a bottom strip ---------- */
+  @media (max-width: 700px) {
+    .app { flex-direction: column-reverse; }
+    #map { height: auto; min-height: 300px; }
+    .panel { width: 100%; max-width: none; height: auto; max-height: 45%; border-right: none; border-top: 1px solid var(--line); }
+    .panel header { padding: 12px 16px 8px; }
+    .panel h1 { font-size: 16px; }
+    .places { display: flex; overflow-x: auto; gap: 8px; padding: 8px 16px 12px; scroll-snap-type: x mandatory; }
+    .place { flex: 0 0 78%; scroll-snap-align: start; border-color: var(--line); }
+    .panel .tip { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <header>
+      <h1 id="title"></h1>
+      <p class="sub" id="subtitle"></p>
+    </header>
+    <ul class="places" id="places"></ul>
+    <p class="tip"><b>Tip:</b> turn on <b>Measure</b> and tap anywhere on the map to see how far it is from the home.</p>
+  </aside>
+  <div id="map" role="application" aria-label="Map of places near the home"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* =====================================================================
+   EDIT THIS SECTION to change the home, the places, photos or times.
+   - lat/lng: coordinates. Open the page with ?edit=1 to drag markers
+     into place and copy the updated coordinates.
+   - drive:   drive time in minutes shown on the map.
+   - photo:   optional image URL (leave "" to show the emoji instead).
+   ===================================================================== */
+const CONFIG = {
+  title: "What's Nearby",
+  subtitle: "32 Hackney Pony Lane · The Paddocks, Hilton Head Island",
+  home: {
+    name: "32 Hackney Pony Lane",
+    address: "32 Hackney Pony Ln, Hilton Head Island, SC 29926",
+    lat: 32.2151, lng: -80.7548,
+    photo: ""
+  },
+  places: [
+    { name: "Old Schoolhouse Park", category: "Park · Pickleball", emoji: "🌳",
+      address: "25 Adrianna Ln, Hilton Head Island, SC 29926",
+      lat: 32.2248, lng: -80.7431, drive: 5, photo: "" },
+    { name: "Tin & Tallow", category: "Restaurant", emoji: "🍔",
+      address: "2 Spanish Wells Rd, Hilton Head Island, SC 29926",
+      lat: 32.2231, lng: -80.7361, drive: 5, photo: "" },
+    { name: "Spanish Wells Club", category: "Private Golf & Tennis Club", emoji: "⛳",
+      address: "1 Brams Point Rd, Hilton Head Island, SC 29926",
+      lat: 32.2028, lng: -80.7673, drive: 7, photo: "" },
+    { name: "Country Club of Hilton Head", category: "Golf & Country Club", emoji: "🏌️",
+      address: "70 Skull Creek Dr, Hilton Head Island, SC 29926",
+      lat: 32.2381, lng: -80.7433, drive: 11, photo: "" },
+    { name: "Dill Dinkers Pickleball", category: "Indoor Pickleball", emoji: "🏓",
+      address: "93 Mathews Dr, Suite 150, Hilton Head Island, SC 29926",
+      lat: 32.2183, lng: -80.6960, drive: 12, photo: "" }
+  ]
+};
+/* ===================================================================== */
+
+const EDIT = new URLSearchParams(location.search).has("edit");
+const home = CONFIG.home;
+const homeLL = L.latLng(home.lat, home.lng);
+
+document.getElementById("title").textContent = CONFIG.title;
+document.getElementById("subtitle").textContent = CONFIG.subtitle;
+
+const map = L.map("map", { zoomControl: false, zoomSnap: 0.25, scrollWheelZoom: false, tap: true });
+L.control.zoom({ position: "topright" }).addTo(map);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+  maxZoom: 19, subdomains: "abcd",
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+}).addTo(map);
+
+// Scroll-zoom only after the visitor interacts, so the embed doesn't hijack page scrolling.
+map.on("click focus", () => map.scrollWheelZoom.enable());
+map.getContainer().addEventListener("mouseleave", () => map.scrollWheelZoom.disable());
+
+const miles = (a, b) => a.distanceTo(b) / 1609.344;
+const fmtMi = m => (m < 10 ? m.toFixed(1) : Math.round(m)) + " mi";
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const directions = p => "https://www.google.com/maps/dir/?api=1&origin=" +
+  encodeURIComponent(home.address) + "&destination=" + encodeURIComponent(p.address);
+
+function popupHtml(p, isHome) {
+  const img = p.photo ? `<div class="pop-img" style="background-image:url('${esc(p.photo)}')"></div>` : "";
+  if (isHome) {
+    return `${img}<div class="pop-body"><h3>${esc(p.name)}</h3><p class="addr">${esc(p.address)}</p>
+      <a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address)}">Open in Google Maps</a></div>`;
+  }
+  return `${img}<div class="pop-body"><h3>${esc(p.name)}</h3><p class="addr">${esc(p.address)}</p>
+    <div class="stats">
+      <div class="stat"><b>${p.drive} min</b><span>Drive</span></div>
+      <div class="stat"><b>${fmtMi(p.dist)}</b><span>Distance</span></div>
+    </div>
+    <a class="btn" target="_blank" rel="noopener" href="${directions(p)}">Get directions</a></div>`;
+}
+
+// ---------- Home marker ----------
+const homeIcon = L.divIcon({
+  className: "home-pin", iconSize: [44, 56], iconAnchor: [22, 54], popupAnchor: [0, -50],
+  html: `<svg width="44" height="56" viewBox="0 0 44 56" aria-hidden="true">
+    <path d="M22 2C11 2 2 10.8 2 21.7 2 36 22 54 22 54s20-18 20-32.3C42 10.8 33 2 22 2z" fill="#e0262b" stroke="#fff" stroke-width="3"/>
+    <path d="M13 23l9-8 9 8v9h-6v-6h-6v6h-6z" fill="#fff"/></svg>`
+});
+const homeMarker = L.marker(homeLL, { icon: homeIcon, zIndexOffset: 1000, draggable: EDIT, title: home.name })
+  .addTo(map).bindPopup(popupHtml(home, true));
+if (window.innerWidth > 700) homeMarker.bindTooltip(home.name, { permanent: true, direction: "left", offset: [-20, -30], className: "route-label" });
+
+// ---------- Places ----------
+const list = document.getElementById("places");
+const bounds = L.latLngBounds([homeLL]);
+
+CONFIG.places.forEach((p, i) => {
+  p.ll = L.latLng(p.lat, p.lng);
+  p.dist = miles(homeLL, p.ll);
+  bounds.extend(p.ll);
+
+  p.line = L.polyline([homeLL, p.ll], { color: "#e0262b", weight: 3, opacity: .85, dashArray: "8 6" }).addTo(map);
+
+  p.marker = L.marker(p.ll, {
+    title: p.name, draggable: EDIT, riseOnHover: true,
+    icon: L.divIcon({ className: "poi-pin", iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -16],
+      html: `<div class="poi-dot">${p.emoji}</div>` })
+  }).addTo(map).bindPopup(() => popupHtml(p), { autoPanPadding: [30, 30] });
+  p.marker.bindTooltip(`${p.drive} min`, { permanent: true, direction: "bottom", offset: [0, 14], className: "route-label" });
+  p.marker.on("popupopen", () => setActive(i));
+  p.marker.on("popupclose", () => setActive(-1));
+
+  const li = document.createElement("li");
+  li.className = "place"; li.tabIndex = 0;
+  li.innerHTML = `<div class="thumb" style="${p.photo ? `background-image:url('${esc(p.photo)}')` : ""}">${p.photo ? "" : p.emoji}</div>
+    <div><div class="name">${esc(p.name)}</div><div class="cat">${esc(p.category)}</div>
+    <div class="meta"><b>${p.drive} min</b> drive · <span class="d">${fmtMi(p.dist)}</span> away</div></div>`;
+  const open = () => { map.flyTo(p.ll, Math.max(map.getZoom(), 14), { duration: .6 }); p.marker.openPopup(); };
+  li.addEventListener("click", open);
+  li.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+  p.li = li;
+  list.appendChild(li);
+});
+
+function setActive(idx) {
+  CONFIG.places.forEach((p, i) => {
+    const on = i === idx;
+    p.li.classList.toggle("active", on);
+    p.marker.getElement()?.classList.toggle("active", on);
+    p.line.setStyle({ weight: on ? 5 : 3, opacity: idx === -1 || on ? .85 : .35 });
+    if (on) p.li.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  });
+}
+
+const fitAll = () => map.fitBounds(bounds, { padding: [40, 40] });
+fitAll();
+
+// ---------- Map buttons: reset view + measure tool ----------
+let measuring = false, measureLayer = L.layerGroup().addTo(map);
+const Buttons = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    const box = L.DomUtil.create("div", "map-btns");
+    box.innerHTML = `<button class="map-btn" id="btn-measure" type="button">📏 Measure</button>
+                     <button class="map-btn" id="btn-reset" type="button">⤢ Show all</button>`;
+    L.DomEvent.disableClickPropagation(box);
+    box.querySelector("#btn-reset").onclick = () => { map.closePopup(); fitAll(); };
+    box.querySelector("#btn-measure").onclick = e => {
+      measuring = !measuring;
+      e.currentTarget.classList.toggle("on", measuring);
+      e.currentTarget.textContent = measuring ? "✕ Stop measuring" : "📏 Measure";
+      map.getContainer().style.cursor = measuring ? "crosshair" : "";
+      if (!measuring) measureLayer.clearLayers();
+    };
+    return box;
+  }
+});
+map.addControl(new Buttons());
+
+map.on("click", e => {
+  if (!measuring) return;
+  measureLayer.clearLayers();
+  const d = miles(homeLL, e.latlng);
+  L.polyline([homeLL, e.latlng], { color: "#1f2933", weight: 3, dashArray: "2 7", lineCap: "round" }).addTo(measureLayer);
+  L.circleMarker(e.latlng, { radius: 6, color: "#1f2933", fillColor: "#fff", fillOpacity: 1, weight: 3 })
+    .addTo(measureLayer)
+    .bindTooltip(`${fmtMi(d)} from home<br><small>straight line</small>`, { permanent: true, direction: "top", offset: [0, -8], className: "measure-label" })
+    .openTooltip();
+});
+
+// ---------- Edit mode (?edit=1): drag markers, copy coordinates ----------
+if (EDIT) {
+  const box = document.createElement("div");
+  box.className = "editbox";
+  box.innerHTML = `<b>Edit mode</b> – drag any marker to its exact spot, then copy these coordinates into CONFIG.
+    <textarea id="coords" readonly></textarea>`;
+  document.querySelector(".app").appendChild(box);
+  L.DomEvent.disableClickPropagation(box);
+  const out = box.querySelector("#coords");
+  const r = v => +v.toFixed(5);
+  const dump = () => {
+    const h = homeMarker.getLatLng();
+    out.value = [`home: lat: ${r(h.lat)}, lng: ${r(h.lng)}`,
+      ...CONFIG.places.map(p => { const ll = p.marker.getLatLng(); return `${p.name}: lat: ${r(ll.lat)}, lng: ${r(ll.lng)}`; })].join("\n");
+  };
+  const refresh = () => {
+    const h = homeMarker.getLatLng();
+    CONFIG.places.forEach(p => {
+      p.ll = p.marker.getLatLng();
+      p.dist = miles(h, p.ll);
+      p.line.setLatLngs([h, p.ll]);
+      p.li.querySelector(".d").textContent = fmtMi(p.dist);
+    });
+    dump();
+  };
+  homeMarker.on("drag", refresh);
+  CONFIG.places.forEach(p => p.marker.on("drag", refresh));
+  dump();
+}
+</script>
+</body>
+</html>
